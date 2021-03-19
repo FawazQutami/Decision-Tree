@@ -29,37 +29,48 @@ def entropy(y):
     """
     # Count number of occurrences of each value in array of non-negative ints - class labels occurrences
     label_occurrences = np.bincount(y)
-
     # P(X) = number of all class labels occurrences / total number of samples
     p_x = label_occurrences / len(y)
-
     # Calculate the Entropy
     ent = -np.sum([p * np.log2(p) for p in p_x if p > 0])
-
     # Return the entropy - float
     return ent
 
 
-class Node:
-    """ Node Leaf - store all the node leaf information"""
+def most_common_class(y):
+    """
+    most_common_class method
+    :param y: {array-like}
+    :return: {int}
+    """
+    common_class = Counter(y)
+    # Get a list of tuple of most common labels
+    most_common_class_list = common_class.most_common(1)
+    # Return the first tuple and then the first dimension
+    most_common = most_common_class_list[0][0]
+    return most_common
 
-    def __init__(self, feature=None, threshold=None, left=None, right=None, *, value=None):
+
+class Node:
+    """ Node - store all the node information"""
+
+    def __init__(self, feature_index=None, threshold=None, left=None, right=None, *, value=None):
         """
         Class constructor
-        :param feature: best split feature
-        :param threshold: best split threshold
-        :param left: left child tree
-        :param right: right child tree
-        :param value: common class label for the leaf
+        :param feature_index: {int} best split feature index
+        :param threshold: {float} best split threshold
+        :param left: {node} left child tree
+        :param right: {node} right child tree
+        :param value: {int} common class label for the leaf node
         """
-        self.feature = feature
+        self.feature_index = feature_index
         self.threshold = threshold
         self.left = left
         self.right = right
         self.value = value
 
-    def is_leaf(self):
-        # If there is a value then it is a leaf (node)
+    def is_leaf_node(self):
+        # If there is a value then it is a leaf node
         return self.value is not None
 
 
@@ -80,13 +91,12 @@ class DecisionTreeClassifier:
     and simplicity.
     """
 
-    def __init__(self, min_training_samples=2, max_depth=100, rf_features=None):
+    def __init__(self, min_training_samples=2, max_depth=0):
         """
         Class constructor
         :param min_training_samples: {int} minimum number of training samples to use on each leaf
         :param max_depth: {int} Maximum depth refers to the the length of the longest path from
                                 a root to a leaf.
-        :param rf_features: {None} A random factor
         """
         # Set a minimum number of training samples to use on each leaf
         self.min_training_samples = min_training_samples
@@ -94,50 +104,48 @@ class DecisionTreeClassifier:
         # the longest path from a root to a leaf.
         self.max_depth = max_depth
 
-        self.rf_features = rf_features
-        # We need to know where we should start the traversing
+        # Root Node - We need to know where we should start the traversing
         self.root = None
 
-    def fit(self, x_trn, y_trn):
+    def fit(self, X, y):
         """
-        Fit Method
-        :param x_trn: {array-like}
-        :param y_trn: {array-like}
+        fit Method
+        :param X: {array-like}
+        :param y: {array-like}
         :return: None
         """
-        # Initialize the random factor with the number of features
-        self.rf_features = x_trn.shape[1] if not self.rf_features \
-            else min(self.rf_features, x_trn.shape[1])
+        # Initialize number of features
+        self.n_features = X.shape[1]
         # Growing a tree starting from root
-        self.root = self.grow(x_trn, y_trn)
+        self.root = self.grow_tree(X, y)
 
-    def predict(self, x_test):
+    def predict(self, X):
         """
         predict method
-        :param x_test: {array-like}
+        :param X: {array-like}
         :return: {array-like}
         """
-        return np.array([self.traverse_tree(x, self.root) for x in x_test])
+        return np.array([self.traverse_tree(x, self.root) for x in X])
 
-    def traverse_tree(self, x, node):
+    def traverse_tree(self, X, node):
         """
         traverse_tree method
-        :param x: {array-like}
+        :param X: {array-like}
         :param node: {root tree}
         :return:
         """
-        if node.is_leaf():
+        if node.is_leaf_node():
             return node.value
 
-        if x[node.feature] <= node.threshold:
-            return self.traverse_tree(x, node.left)
-        return self.traverse_tree(x, node.right)
+        if X[node.feature_index] <= node.threshold:
+            return self.traverse_tree(X, node.left)
+        return self.traverse_tree(X, node.right)
 
-    def grow(self, x_trn, y_trn, depth=0):
+    def grow_tree(self, X, y, depth=0):
         """
-        grow method
-        :param x_trn: {array-like}
-        :param y_trn: {array-like}
+        grow_tree method
+        :param X: {array-like}
+        :param y: {array-like}
         :param depth: {int}
         :return: {Node}
         """
@@ -151,126 +159,116 @@ class DecisionTreeClassifier:
             This process of top-down induction of decision trees (TDIDT) is an example of a greedy algorithm,
             and it is by far the most common strategy for learning decision trees from data.
         """
-        # Initialize the parameters
-        n_samples, n_features = x_trn.shape
-        # Get the labels
-        n_labels = len(np.unique(y_trn))
+        # Get number of samples
+        n_samples = X.shape[0]
+        # Get the labels/classes
+        n_classes = len(np.unique(y))  # n_classes = len(set(y))
 
-        # When to stop growing a tree? (stopping criteria) - to avoid overfitting
+        # When to stop growing a tree? (stopping criteria) - to avoid over-fitting
         if (depth >= self.max_depth  # Check if reached max depth
-                or n_labels == 1  # Check if no more class labels
-                or n_samples < self.min_training_samples):  # Check if min samples exist in Node
+                or n_classes == 1  # Check if no more class labels
+                or n_samples < self.min_training_samples  # Check if min samples exist in Node
+                ):
             # If one of the above checks satisfied then:
             # Get the common class in the Node
-            common_class = Counter(y_trn)
-            # Get a list of tuple of most common labels
-            most_common_class = common_class.most_common(1)
-            # Return the first tuple and then the first dimension
-            leaf_value = most_common_class[0][0]
-
+            leaf_node_value = most_common_class(y)
             # Return the class label as the value of the leaf Node
-            return Node(value=leaf_value)
+            return Node(value=leaf_node_value)
 
-        # Otherwise:
-        # Generate a uniform random sample from np.arange(n_features) of size [self.rf_features]
-        # without replacement:
-        feature_indices = np.random.choice(n_features, self.rf_features, replace=False)
+        # Otherwise: -----------
+        # Greedy Search  - select the best feature index and best threshold according to information gain
+        best_feature_index, best_threshold = self.greedy_search(X, y)
 
-        # Greedy Search - select the best split according to information gain
-        best_feature, best_threshold = self.greedy_search(x_trn, y_trn, feature_indices)
-
-        # Split the node to left child and right child - according to the resulted greedy search split
-        left_indices, right_indices = self.split_node(x_trn[:, best_feature], best_threshold)
-        x_left, y_left = x_trn[left_indices, :], y_trn[left_indices]
-        x_right, y_right = x_trn[right_indices, :], y_trn[right_indices]
+        # Split the node samples to left child and right child
+        left_indices, right_indices = self.split_node(X[:, best_feature_index], best_threshold)
+        x_left, y_left = X[left_indices, :], y[left_indices]
+        x_right, y_right = X[right_indices, :], y[right_indices]
 
         # Grow the children
-        left_node = self.grow(x_left, y_left, depth + 1)
-        right_node = self.grow(x_right, y_right, depth + 1)
+        left_node = self.grow_tree(x_left, y_left, depth + 1)
+        right_node = self.grow_tree(x_right, y_right, depth + 1)
 
         # Return node information
-        return Node(best_feature, best_threshold, left_node, right_node)
+        return Node(best_feature_index, best_threshold, left_node, right_node)
 
-    def greedy_search(self, x_trn, y_trn, feature_indices):
+    def greedy_search(self, X, y):
         """
         greedy_search method
-        :param x_trn: {array-like}
-        :param y_trn: {array-like}
-        :param feature_indices: {array-like}
-        :return: {int}, {int}
+        :param X: {array-like}
+        :param y: {array-like}
+        :return: {int}: best_feature_index, {float}: best_threshold
         """
         best_gain = -1
-        best_feature, best_threshold = None, None
+        best_feature_index, best_threshold = None, None
 
         # Loop over all features
-        for feature_index in feature_indices:
-            # Select the vector column of X by feature index
-            x_vector = x_trn[:, feature_index]
-            # Get all the possible threshold of the selected column vector
+        for feature_index in range(self.n_features):
+            # Select the vector column (feature) of X by index - one feature array
+            x_vector = X[:, feature_index]
+            # Get all the possible threshold of the selected feature
             thresholds = np.unique(x_vector)
-
             # Loop over all thresholds
             for threshold in thresholds:
                 # Calculate the information gain
-                gain = self.information_gain(y_trn, x_vector, threshold)
-                # Check if the gain is the best
+                gain = self.information_gain(y, x_vector, threshold)
+                # Check if the gain is the best gain
                 if gain > best_gain:
                     # Best gain is the gain
                     best_gain = gain
                     # Save the index and the threshold
-                    best_feature = feature_index
+                    best_feature_index = feature_index
                     best_threshold = threshold
 
         # Return the best feature and the best threshold
-        return best_feature, best_threshold
+        return best_feature_index, best_threshold
 
-    def information_gain(self, y_trn, x_vector, threshold):
+    def information_gain(self, y, x_vector, threshold):
         """
         information_gain method
-        :param y_trn: {array-like}
-        :param x_vector: {array-like}
-        :param threshold: {array-like}
-        :return: {float}
+        :param y: {array-like}
+        :param x_vector: {array-like} one feature array
+        :param threshold: {float}
+        :return: {float}: info_gain
         """
-        # Split the node to left child and right child
-        left_indices, right_indices = self.split_node(x_vector, threshold)
-        if len(left_indices) == 0 or len(right_indices) == 0:
-            return 0
-
-        n_labels = len(y_trn)
-
         # Calculate the parent entropy
-        parent = entropy(y_trn)
+        parent = entropy(y)
 
-        # Get the number of labels of the left child and right child
-        n_left, n_right = len(left_indices), len(right_indices)
+        # Get the indices by splitting the node to left and right
+        left_indices, right_indices = self.split_node(x_vector, threshold)
+        # Check on the indices
+        if (len(left_indices) == 0
+                or len(right_indices) == 0):
+            return 0
+        # Get the total number of samples
+        n_samples = len(y)
+        # Get the number of samples of the left child and right child
+        n_samples_left, n_samples_right = len(left_indices), len(right_indices)
 
         # Calculate the left children entropy
-        l_child = entropy(y_trn[left_indices])
-
+        l_child_entropy = entropy(y[left_indices])
         # Calculate the right children entropy
-        r_child = entropy(y_trn[right_indices])
+        r_child_entropy = entropy(y[right_indices])
 
         # Calculate the weighted average of the entropy of the children
-        children = (n_left / n_labels) * l_child \
-                   + (n_right / n_labels) * r_child
+        children = (n_samples_left / n_samples) * l_child_entropy \
+                   + (n_samples_right / n_samples) * r_child_entropy
 
         # Calculate information gain - difference in loss
         info_gain = parent - children
 
+        # Return information gain
         return info_gain
 
     def split_node(self, x_vector, threshold):
         """
         split_node method
         :param x_vector: {array-like}
-        :param threshold: {int}
-        :return: {array-like}, {array-like}
+        :param threshold: {float}
+        :return: {array-like}: left_indices, {array-like}: right_indices
         """
         # Find the non-zero grouped elements of the left node indices if the vector column
         # is less or equal the threshold
-        left_indices = np.argwhere(x_vector <= threshold).flatten()
-
+        left_indices = np.argwhere(x_vector <= threshold).flatten()     # flatten to get 1d array
         # Find the non-zero grouped elements of the right node indices if the vector column
         # is bigger than the threshold
         right_indices = np.argwhere(x_vector > threshold).flatten()
