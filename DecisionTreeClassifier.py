@@ -91,15 +91,15 @@ class DecisionTreeClassifier:
     and simplicity.
     """
 
-    def __init__(self, min_training_samples=2, max_depth=0):
+    def __init__(self, min_samples_split=2, max_depth=0):
         """
         Class constructor
-        :param min_training_samples: {int} minimum number of training samples to use on each leaf
+        :param min_samples_split: {int} minimum number of training samples to use on each leaf
         :param max_depth: {int} Maximum depth refers to the the length of the longest path from
                                 a root to a leaf.
         """
         # Set a minimum number of training samples to use on each leaf
-        self.min_training_samples = min_training_samples
+        self.min_samples_split = min_samples_split
         # set maximum depth of your model. Maximum depth refers to the the length of
         # the longest path from a root to a leaf.
         self.max_depth = max_depth
@@ -167,7 +167,7 @@ class DecisionTreeClassifier:
         # When to stop growing a tree? (stopping criteria) - to avoid over-fitting
         if (depth >= self.max_depth  # Check if reached max depth
                 or n_classes == 1  # Check if no more class labels
-                or n_samples < self.min_training_samples  # Check if min samples exist in Node
+                or n_samples < self.min_samples_split  # Check if min samples exist in Node
                 ):
             # If one of the above checks satisfied then:
             # Get the common class in the Node
