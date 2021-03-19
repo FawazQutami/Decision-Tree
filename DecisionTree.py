@@ -176,7 +176,7 @@ class DecisionTree:
             return Node(value=leaf_node_value)
 
         # Otherwise: -----------
-        # Greedy Search  - select the best feature index and best threshold according to information gain
+        # Greedy Search to minimizes error - select the best feature index and best threshold according information gain
         best_feature_index, best_threshold = self.greedy_search(X, y)
 
         # Split the node samples to left child and right child
